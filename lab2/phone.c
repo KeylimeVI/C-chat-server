@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
     char string[10];
     int* digit;
     printf("Input string and digit: ");
-    int err = scanf("%s %d", string, digit);
+    int err = scanf("%10s%d", string, digit);
     if (err <= 0) {
         printf("ERROR");
         return 1;
