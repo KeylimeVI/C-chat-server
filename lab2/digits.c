@@ -3,7 +3,7 @@
 #include <string.h>
 
 /* Return the number of repeated digits in number. Return -1
- * if numbers is NULL or length is less than 1. 
+ * if numbers is NULL or length is less than 1.
  *      numbers: an array of digits
  *      length: the number of digits in number
  * Your solution must have only one loop.
@@ -14,26 +14,54 @@
 int repeated_digits(int *numbers, int length) {
     // TODO complete the function according to its description
     // remember to change the return value.
-   return -9;
+    if (numbers == NULL || length <= 1) {
+        return -1;
+    }
+    int visited[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    int result = 0;
+    for (int i = 0; i < length; i++) {
+        int curr = numbers[i];
+        if (visited[curr] == 0) {
+            visited[curr] += 1;
+        } else if (visited[curr] == 1) {
+            visited[curr] += 1;
+            result += 1;
+        }
+    }
+    return result;
 }
 
-/* 
+/*
  * Modify numbers so that only digits that appear more than
  * once remain. The order of the digits in numbers when the
- * function returns will be the order in which duplicates 
+ * function returns will be the order in which duplicates
  * were identified. Length is updated to reflect the new
  * length of numbers.
- * 
- * Your solution must have only one loop, and must modify 
+ *
+ * Your solution must have only one loop, and must modify
  * numbers in place.
- * 
+ *
  * Examples:
  *  leave_repeated_digits([1, 2, 2, 1, 3, 2], 6) -> numbers = [2, 1], length = 2
  *  leave_repeated_digits([1, 2], 2) -> numbers = [], length = 0
- * 
+ *
  */
 void leave_repeated_digits(int *numbers, int *length) {
-    // TODO complete the function according to its description
+    int result[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    int visited[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    int next_repeat = 0;
+    for (int i = 0; i < *length; i++) {
+        int curr = numbers[i];
+        if (visited[curr] == 0) {
+            visited[curr] += 1;
+        } else if (visited[curr] == 1) {
+            visited[curr] += 1;
+            result[next_repeat] = curr;
+            next_repeat += 1;
+        }
+    }
+    *numbers = *result;
+    *length = next_repeat;
 }
 
 
@@ -77,7 +105,7 @@ int main(int argc, char *argv[]) {
     // Convert the argument to an array of digits, checking that the
     // characters are all digits.
     int len = strlen(argv[1]);
-    int digits[len]; 
+    int digits[len];
 
     for(int i = 0; i < len; i++) {
         if (argv[1][i] < '0' || argv[1][i] > '9') {
