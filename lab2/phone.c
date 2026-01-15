@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
 
     if (*digit == -1) {
         printf("%s", string);
-    } else if (0 <= *digit || *digit <= 9) {
+    } else if (0 <= *digit && *digit <= 9) {
         printf("%c", string[*digit]);
     } else {
         printf("ERROR");
