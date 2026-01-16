@@ -47,21 +47,19 @@ int repeated_digits(int *numbers, int length) {
  *
  */
 void leave_repeated_digits(int *numbers, int *length) {
-    int result[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     int visited[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    int next_repeat = 0;
+    int answer_index = 0;
     for (int i = 0; i < *length; i++) {
         int curr = numbers[i];
         if (visited[curr] == 0) {
             visited[curr] += 1;
         } else if (visited[curr] == 1) {
             visited[curr] += 1;
-            result[next_repeat] = curr;
-            next_repeat += 1;
+            numbers[answer_index] = curr;
+            answer_index += 1;
         }
     }
-    *numbers = *result;
-    *length = next_repeat;
+    *length = answer_index;
 }
 
 
