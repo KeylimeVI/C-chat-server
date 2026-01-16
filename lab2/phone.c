@@ -14,7 +14,6 @@ to stdout and returns 1.
 int main(int argc, char **argv) {
     char string[10];
     int digit;
-    printf("Input string and digit: ");
     int err = scanf("%10s%d", string, &digit);
     if (err <= 0) {
         printf("ERROR");
@@ -22,9 +21,9 @@ int main(int argc, char **argv) {
     }
 
     if (digit == -1) {
-        printf("%s", string);
+        printf("%s\n", string);
     } else if (0 <= digit && digit <= 9) {
-        printf("%c", string[digit]);
+        printf("%c\n", string[digit]);
     } else {
         printf("ERROR");
         return 1;
