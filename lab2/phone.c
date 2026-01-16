@@ -13,18 +13,18 @@ to stdout and returns 1.
  */
 int main(int argc, char **argv) {
     char string[10];
-    int* digit;
+    int digit;
     printf("Input string and digit: ");
-    int err = scanf("%10s%d", string, digit);
+    int err = scanf("%10s%d", string, &digit);
     if (err <= 0) {
         printf("ERROR");
         return 1;
     }
 
-    if (*digit == -1) {
+    if (digit == -1) {
         printf("%s", string);
-    } else if (0 <= *digit && *digit <= 9) {
-        printf("%c", string[*digit]);
+    } else if (0 <= digit && digit <= 9) {
+        printf("%c", string[digit]);
     } else {
         printf("ERROR");
         return 1;
