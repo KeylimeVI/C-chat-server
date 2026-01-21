@@ -16,6 +16,17 @@
 
 /* Write your solution here */
 
+void fib(int** array, int n) {
+    *array = (int*)malloc(sizeof(int) * n + 1);
+    (*array)[0] = 0;
+    if (n >= 1) {
+        (*array)[1] = 1;
+    }
+    for (int i = 2; i <= n; i++) {
+        (*array)[i] = (*array)[i-1] + (*array)[i-2];
+    }
+    return;
+}
 
 int main(int argc, char **argv) {
     /* do not change this main function */
