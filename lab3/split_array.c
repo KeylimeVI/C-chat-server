@@ -18,7 +18,7 @@ int **split_array(const int *s, int length) {
         a2 = (int*)malloc(sizeof(int) * (length / 2));
     } else {
         a1 = (int*)malloc(sizeof(int) * ((length + 1) / 2));
-        a2 = (int*)malloc(sizeof(int) * (length / 2));
+        a2 = (int*)malloc(sizeof(int) * ((length - 1) / 2));
     }
     for (int i = 0; i < length; i++) {
         if (i % 2 == 0) {
