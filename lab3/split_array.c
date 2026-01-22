@@ -27,7 +27,7 @@ int **split_array(const int *s, int length) {
             a2[(i - 1) / 2] = s[i];
         }
     }
-    int** res = (int**)malloc(sizeof(int*) * 2);
+    int** res = (int**)malloc(sizeof(int*) * 1);
     res[0] = a1;
     res[1] = a2;
     return res;
@@ -41,9 +41,8 @@ int **split_array(const int *s, int length) {
 
 int *build_array(char **strs, int size) {
     int* res = (int*)malloc(size * sizeof(int));
-    char* error;
     for (int i = 0; i < size; i++) {
-        int num = strtol(strs[i], &error, 10);
+        int num = strtol(strs[i], NULL, 10);
         res[i] = num;
     }
     return res;
