@@ -17,7 +17,7 @@
 /* Write your solution here */
 
 void fib(int** array, int n) {
-    *array = (int*)malloc(sizeof(int) * n + 1);
+    *array = (int*)malloc(sizeof(int) * n);
     (*array)[0] = 0;
     if (n >= 1) {
         (*array)[1] = 1;
