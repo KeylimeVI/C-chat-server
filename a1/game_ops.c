@@ -4,14 +4,45 @@
 
 #define MAX_SIZE 20
 
-// getter using 1 based indexing and x, y order
-int get(int board[][MAX_SIZE], int x, int y) {
-    return board[y - 1][x - 1];
+typedef struct NeighbourArray {
+    int** array;
+    int length;
+} NeighbourArray;
+
+typedef struct Board {
+    int** board;
+    int rows;
+    int cols;
+} Board;
+
+Board make_board(int** board, int rows, int cols) {
+    Board result;
+    result.board = board;
+    result.rows = rows;
+    result.cols = cols;
+    return result;
 }
 
-// setter using 1 based indexing and x, y order
-void set(int board[][MAX_SIZE], int x, int y, int value) {
-    board[y - 1][x - 1] = value;
+// getter, using 1 based indexing and x, y order. returns NULL if out of bounds
+int get(Board board, int x, int y) {
+    if (x > board.cols || x <= 0) {
+        return NULL;
+    }
+    else if (y > board.rows || y <= 0) {
+        return NULL;
+    }
+    return board.board[y-1][x-1];
+}
+
+// get the adress of x, y, NULL if out of bounds
+int* get_ptr(Board board, int x, int y) {
+    if (x > board.cols || x <= 0) {
+        return NULL;
+    }
+    else if (y > board.rows || y <= 0) {
+        return NULL;
+    }
+    return &board.board[y-1][x-1];
 }
 
 
@@ -46,8 +77,19 @@ void read_board(FILE *fp, int board[][MAX_SIZE], int *rows, int *cols) {
  * rows and cols are the dimensions of the array.
  */
 void initialize_visible(int visible[][MAX_SIZE], int rows, int cols) {
-    for (int i = 0; i < rows; i++)
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            visible[i][j] = 0;
+        }
+    }
 }
+
+NeighbourArray get_neighbours(Board board, int x, int y) {
+    NeighbourArray result;
+    result.array = (int**)malloc(sizeof(int*) * 8);
+    int* res = get_ptr(board, x, y);
+}
+
 
 /**
  * Caculate the number of adjacent mines for each cell.
@@ -59,7 +101,15 @@ void initialize_visible(int visible[][MAX_SIZE], int rows, int cols) {
  * Hint: Be careful with boundary checks!
  */
 void calculate_numbers(int board[][MAX_SIZE], int rows, int cols) {
-    // TODO: Implement this function.
+    for (int y = 0; y < rows; y++) {
+        for (int x = 0; x < cols; x++) {
+            if (board[y][x] == -1) {
+                if ((y == 0) || (y == rows - 1) && ((x == 0) || (x == rows - 1))) {
+
+                }
+            }
+        }
+    }
 }
 
 /**
