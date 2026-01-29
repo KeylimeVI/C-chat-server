@@ -4,18 +4,18 @@
 
 #define MAX_SIZE 20
 
-typedef struct NeighbourArray {
-    int** array;
+typedef struct List {
     int length;
-} NeighbourArray;
+    int** array;
+} List;
 
 typedef struct Board {
-    int** board;
+    int (*board)[MAX_SIZE];
     int rows;
     int cols;
 } Board;
 
-Board make_board(int** board, int rows, int cols) {
+Board make_board(int board[][MAX_SIZE], int rows, int cols) {
     Board result;
     result.board = board;
     result.rows = rows;
@@ -84,10 +84,26 @@ void initialize_visible(int visible[][MAX_SIZE], int rows, int cols) {
     }
 }
 
-NeighbourArray get_neighbours(Board board, int x, int y) {
-    NeighbourArray result;
+List get_neighbours(Board board, int x, int y) {
+    List result;
     result.array = (int**)malloc(sizeof(int*) * 8);
-    int* res = get_ptr(board, x, y);
+    result.array[0] = get_ptr(board, x+1, y);
+    result.array[1] = get_ptr(board, x+1, y+1);
+    result.array[2] = get_ptr(board, x, y+1);
+    result.array[3] = get_ptr(board, x-1, y+1);
+    result.array[4] = get_ptr(board, x-1, y);
+    result.array[5] = get_ptr(board, x-1, y-1);
+    result.array[6] = get_ptr(board, x, y-1);
+    result.array[7] = get_ptr(board, x+1, y-1);
+    int next = 0;
+    for (int i = 0; i < 8; i++) {
+        if (result.array[i] != NULL) {
+            result.array[next] = result.array[i];
+            next += 1;
+        }
+    }
+    result.length = next;
+    return result;
 }
 
 
@@ -101,11 +117,16 @@ NeighbourArray get_neighbours(Board board, int x, int y) {
  * Hint: Be careful with boundary checks!
  */
 void calculate_numbers(int board[][MAX_SIZE], int rows, int cols) {
-    for (int y = 0; y < rows; y++) {
-        for (int x = 0; x < cols; x++) {
-            if (board[y][x] == -1) {
-                if ((y == 0) || (y == rows - 1) && ((x == 0) || (x == rows - 1))) {
-
+    Board b = make_board(board, rows, cols);
+    for (int y = 1; y <= rows; y++) {
+        for (int x = 1; x <= cols; x++) {
+            int* cell = get_ptr(b, x, y);
+            if (*cell == -1) {
+                List neighbours = get_neighbours(b, x, y);
+                for (int i = 0; i < neighbours.length; i++) {
+                    if ((*neighbours.array)[i] != -1) {
+                        (*neighbours.array)[i] += 1;
+                    }
                 }
             }
         }
