@@ -4,6 +4,8 @@
 
 #define MAX_SIZE 20
 
+// I made a bunch of helpers to write cleaner less mangled code.
+
 typedef struct List {
     int length;
     int** array;
@@ -25,7 +27,7 @@ Board make_board(int board[][MAX_SIZE], int rows, int cols) {
     return result;
 }
 
-// getter, using 1 based indexing and x, y order. returns NULL if out of bounds
+// getter, using 1 based indexing and x, y order. returns -1 if out of bounds
 int get(Board board, int x, int y) {
     if (x > board.cols || x <= 0) {
         return -1;
