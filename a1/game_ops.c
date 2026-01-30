@@ -28,10 +28,10 @@ Board make_board(int board[][MAX_SIZE], int rows, int cols) {
 // getter, using 1 based indexing and x, y order. returns NULL if out of bounds
 int get(Board board, int x, int y) {
     if (x > board.cols || x <= 0) {
-        return NULL;
+        return -1;
     }
     else if (y > board.rows || y <= 0) {
-        return NULL;
+        return -1;
     }
     return board.board[y-1][x-1];
 }
@@ -151,6 +151,8 @@ void calculate_numbers(int board[][MAX_SIZE], int rows, int cols) {
                     }
                 }
                 free(neighbours.array);
+                free(neighbours.x);
+                free(neighbours.y);
             }
         }
     }
@@ -264,8 +266,8 @@ int check_game_over(int board[][MAX_SIZE], int visible[][MAX_SIZE],
     int num_invisible = 0;
     for (int y = 1; y <= rows; y++) {
         for (int x = 1; x <= cols; x++) {
-            int cell = get(b, rows, cols);
-            int vis_cell = get(vis, rows, cols);
+            int cell = get(b, x, y);
+            int vis_cell = get(vis, x, y);
             if (vis_cell == 1) {
                 if (cell == -1) {
                     return -1;
