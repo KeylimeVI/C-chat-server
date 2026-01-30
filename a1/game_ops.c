@@ -241,11 +241,13 @@ void print_board(int board[][MAX_SIZE], int visible[][MAX_SIZE],
                 }
             }
             write_ptr += sizeof(char);
-            strcpy(write_ptr, " ");
+            if (x < cols) {
+                strcpy(write_ptr, " ");
+            } else {
+                strcpy(write_ptr, "\n");
+            }
             write_ptr += sizeof(char);
         }
-        strcpy(write_ptr - sizeof(char), "\n");
-        write_ptr += sizeof(char);
     }
     printf("%s", result);
 }
