@@ -7,6 +7,8 @@
 typedef struct List {
     int length;
     int** array;
+    int* x;
+    int* y;
 } List;
 
 typedef struct Board {
@@ -87,6 +89,8 @@ void initialize_visible(int visible[][MAX_SIZE], int rows, int cols) {
 List get_neighbours(Board board, int x, int y) {
     List result;
     result.array = (int**)malloc(sizeof(int*) * 8);
+    result.x = (int*)malloc(sizeof(int) * 8);
+    result.y = (int*)malloc(sizeof(int) * 8);
     result.array[0] = get_ptr(board, x+1, y);
     result.array[1] = get_ptr(board, x+1, y+1);
     result.array[2] = get_ptr(board, x, y+1);
@@ -95,10 +99,28 @@ List get_neighbours(Board board, int x, int y) {
     result.array[5] = get_ptr(board, x-1, y-1);
     result.array[6] = get_ptr(board, x, y-1);
     result.array[7] = get_ptr(board, x+1, y-1);
+    result.x[0] = x+1;
+    result.x[1] = x+1;
+    result.x[2] = x;
+    result.x[3] = x-1;
+    result.x[4] = x-1;
+    result.x[5] = x-1;
+    result.x[6] = x;
+    result.x[7] = x+1;
+    result.y[0] = y;
+    result.y[1] = y+1;
+    result.y[2] = y+1;
+    result.y[3] = y+1;
+    result.y[4] = y;
+    result.y[5] = y-1;
+    result.y[6] = y-1;
+    result.y[7] = y-1;
     int next = 0;
     for (int i = 0; i < 8; i++) {
         if (result.array[i] != NULL) {
             result.array[next] = result.array[i];
+            result.x[next] = result.x[i];
+            result.y[next] = result.y[i];
             next += 1;
         }
     }
@@ -124,10 +146,11 @@ void calculate_numbers(int board[][MAX_SIZE], int rows, int cols) {
             if (*cell == -1) {
                 List neighbours = get_neighbours(b, x, y);
                 for (int i = 0; i < neighbours.length; i++) {
-                    if ((*neighbours.array)[i] != -1) {
-                        (*neighbours.array)[i] += 1;
+                    if (*neighbours.array[i] != -1) {
+                        *neighbours.array[i] += 1;
                     }
                 }
+                free(neighbours.array);
             }
         }
     }
@@ -145,7 +168,18 @@ void flood_fill(int board[][MAX_SIZE], int visible[][MAX_SIZE],
                 int rows, int cols, int row, int col) {
 
     // TODO: Implement this function
-
+    Board b = make_board(board, rows, cols);
+    Board vis = make_board(visible, rows, cols);
+    int x = col + 1;
+    int y = row + 1;
+    int* cell = get_ptr(b, x, y);
+    *get_ptr(vis, x, y) = 1;
+    List neighbours = get_neighbours(b, x, y);
+    for (int i = 0; i < neighbours.length; i++) {
+        if (*neighbours.array[i] == 0) {
+            flood_fill(board, visible, rows, cols, neighbours.x[i], neighbours.y[i]);
+        }
+    }
 }
 
 /**
@@ -159,7 +193,19 @@ void flood_fill(int board[][MAX_SIZE], int visible[][MAX_SIZE],
  */
 void reveal_cell(int board[][MAX_SIZE], int visible[][MAX_SIZE],
                  int rows, int cols, int row, int col) {
-    // TODO: Implement this function.
+    Board b = make_board(board, rows, cols);
+    Board vis = make_board(visible, rows, cols);
+    int x = col + 1;
+    int y = row + 1;
+    if (get(vis, x, y) == 1) {
+        return;
+    }
+    int cell = get(b, x, y);
+    if (cell == 0) {
+        flood_fill(board, visible, rows, cols, row, col);
+    } else {
+        *get_ptr(vis, x, y) = 1;
+    }
 }
 
 /**
@@ -172,7 +218,34 @@ void reveal_cell(int board[][MAX_SIZE], int visible[][MAX_SIZE],
  */
 void print_board(int board[][MAX_SIZE], int visible[][MAX_SIZE],
                  int rows, int cols) {
-    // TODO: Implement this function
+
+    Board b = make_board(board, rows, cols);
+    Board vis = make_board(visible, rows, cols);
+    char result[2 * rows * (cols + 1)];
+    char* write_ptr = result;
+    for (int y = 1; y <= rows; y++) {
+        for (int x = 1; x <= cols; x++) {
+            int cell = get(b, x, y);
+            int vis_cell = get(vis, x, y);
+            if (vis_cell == 0) {
+                strcpy(write_ptr, ".");
+            }
+            else {
+                if (cell == -1) {
+                    strcpy(write_ptr, "M");
+                }
+                else {
+                    sprintf(write_ptr, "%d", cell);
+                }
+            }
+            write_ptr += sizeof(char);
+            strcpy(write_ptr, " ");
+            write_ptr += sizeof(char);
+        }
+        strcpy(write_ptr, "\n");
+        write_ptr += sizeof(char);
+    }
+    printf("%s", result);
 }
 
 /**
@@ -185,5 +258,31 @@ void print_board(int board[][MAX_SIZE], int visible[][MAX_SIZE],
 int check_game_over(int board[][MAX_SIZE], int visible[][MAX_SIZE],
                     int rows, int cols) {
     // TODO: Implement this function
-    return 0; // replace the return value when implemented.
+    Board b = make_board(board, rows, cols);
+    Board vis = make_board(visible, rows, cols);
+    int mines = 0;
+    int num_invisible = 0;
+    for (int y = 1; y <= rows; y++) {
+        for (int x = 1; x <= cols; x++) {
+            int cell = get(b, rows, cols);
+            int vis_cell = get(vis, rows, cols);
+            if (vis_cell == 1) {
+                if (cell == -1) {
+                    return -1;
+                }
+            }
+            else {
+                num_invisible += 1;
+                if (cell == -1) {
+                    mines += 1;
+                }
+            }
+        }
+    }
+    if (mines == num_invisible) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
 }
