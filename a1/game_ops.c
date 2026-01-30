@@ -174,7 +174,6 @@ void flood_fill(int board[][MAX_SIZE], int visible[][MAX_SIZE],
     Board vis = make_board(visible, rows, cols);
     int x = col + 1;
     int y = row + 1;
-    int* cell = get_ptr(b, x, y);
     *get_ptr(vis, x, y) = 1;
     List neighbours = get_neighbours(b, x, y);
     for (int i = 0; i < neighbours.length; i++) {
