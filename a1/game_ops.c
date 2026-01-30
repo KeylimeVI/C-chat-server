@@ -244,7 +244,7 @@ void print_board(int board[][MAX_SIZE], int visible[][MAX_SIZE],
             strcpy(write_ptr, " ");
             write_ptr += sizeof(char);
         }
-        strcpy(write_ptr, "\n");
+        strcpy(write_ptr - sizeof(char), "\n");
         write_ptr += sizeof(char);
     }
     printf("%s", result);
