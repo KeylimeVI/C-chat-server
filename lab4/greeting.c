@@ -36,11 +36,22 @@ int main(int argc, char **argv) {
     char greeting[20];
     char *name = argv[2];
 
-    // Your code goes here
+    strncpy(greeting, argv[1], sizeof(greeting) - 1);
+    greeting[sizeof(greeting) - 1] = '\0';
+
+    int remaining = sizeof(greeting) - strlen(greeting) - 1;
+
+    if (remaining >= 1) {
+        strncat(greeting, " ", sizeof(greeting) - strlen(greeting) - 1);
+
+        remaining = sizeof(greeting) - strlen(greeting) - 1;
+
+        if (remaining > 0) {
+            strncat(greeting, name, remaining);
+        }
+    }
 
 
     printf("%s\n", greeting);
     return 0;
 }
-
-
