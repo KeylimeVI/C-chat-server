@@ -4,7 +4,7 @@
 
 /* Write the copy function to perform exactly as strncpy does, with one
    exception: your copy function will guarantee that dest is always
-   null-terminated. Capacity is expected to be the number of bytes of 
+   null-terminated. Capacity is expected to be the number of bytes of
    memory allocated to dest.
    You shoud read the man page to learn how strncpy works.
 
@@ -13,8 +13,20 @@
  */
 
 char *copy(char *dest, const char *src, int capacity) {
+    int i;
+    if (capacity <= 0) {
+        return dest;
+    }
 
+    for (i = 0; i < capacity - 1 && src[i] != '\0'; i++) {
+        dest[i] = src[i];
+    }
 
+    dest[i] = '\0';
+    while (i < capacity) {
+        dest[i] = '\0';
+        i++;
+    }
     return dest;
 }
 
@@ -30,7 +42,7 @@ int main(int argc, char **argv) {
     char dummy1[size];
     char dest[size];
     char dummy2[size];
-    
+
     memset(dest, 'x', size);
 
     // Set all the bytes of dest to a dummy value to facilitate testing
