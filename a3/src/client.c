@@ -154,6 +154,7 @@ int send_join_message(client_state_t *state, const char *username) {
     state->username[MAX_USERNAME_LEN - 1] = '\0';
 
     printf("Joining as '%s'...\n", username);
+    fflush(stdout);
     return 0;
 }
 
@@ -279,6 +280,7 @@ int handle_server_messages(client_state_t *state) {
             if (!state->authenticated) {
                 state->authenticated = 1;
                 printf("Successfully joined as '%s'\n", state->username);
+                fflush(stdout);
             }
             break;
         }
@@ -294,6 +296,7 @@ int handle_server_messages(client_state_t *state) {
 // Handle server message
 void handle_server_message(const char *message) {
     printf("\r\x1b[2K%s\n", message);
+    fflush(stdout);
 }
 
 // Handle chat message
@@ -301,14 +304,17 @@ void handle_chat_message(const char *username, const char *message) {
     // Special handling for server notifications
     if (strcmp(username, "SERVER") == 0) {
         printf("\r\x1b[2K%s\n", message);
+        fflush(stdout);
     } else {
         printf("\r\x1b[2K%s\n> %s\n", username, message);
+        fflush(stdout);
     }
 }
 
 // Handle error message
 void handle_error_message(const char *error_message) {
     printf("\r\x1b[2K[ERROR] %s\n", error_message);
+    fflush(stdout);
 }
 
 // Print command prompt
