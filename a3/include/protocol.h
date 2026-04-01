@@ -1,0 +1,54 @@
+#ifndef PROTOCOL_H
+#define PROTOCOL_H
+
+#include <stdint.h>
+
+// Message types for differentiating between different kinds of messages
+typedef enum {
+    MSG_TYPE_JOIN = 1,      // Client joining with username
+    MSG_TYPE_CHAT = 2,      // Chat message to channel
+    MSG_TYPE_LEAVE = 3,     // Client leaving/disconnecting
+    MSG_TYPE_SERVER = 4,    // Server notification/broadcast
+    MSG_TYPE_ERROR = 5,     // Error message from server
+    MSG_TYPE_ACK = 6,       // Acknowledgment
+    // Future command types will be added here
+} message_type_t;
+
+// Maximum lengths for various fields
+#define MAX_USERNAME_LEN 32
+#define MAX_CHANNEL_LEN 32
+#define MAX_MESSAGE_LEN 1024
+
+// Message header - fixed size, always sent first
+typedef struct {
+    uint32_t type;          // message_type_t encoded as uint32_t
+    uint32_t length;        // Length of data payload (network byte order)
+} message_header_t;
+
+// Join message data (client -> server)
+typedef struct {
+    char username[MAX_USERNAME_LEN];
+} join_data_t;
+
+// Chat message data (client -> server, server -> client)
+typedef struct {
+    char username[MAX_USERNAME_LEN];
+    char message[MAX_MESSAGE_LEN];
+} chat_data_t;
+
+// Server message data (server -> client)
+typedef struct {
+    char message[MAX_MESSAGE_LEN];
+} server_data_t;
+
+// Error message data (server -> client)
+typedef struct {
+    char error_message[MAX_MESSAGE_LEN];
+} error_data_t;
+
+// Function prototypes for protocol handling
+int send_message(int fd, message_type_t type, const void *data, uint32_t data_len);
+int receive_message_header(int fd, message_header_t *header);
+int receive_message_data(int fd, void *data, uint32_t data_len);
+
+#endif // PROTOCOL_H
