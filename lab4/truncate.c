@@ -45,5 +45,12 @@ int main(int argc, char **argv) {
     int soln_val = truncate(target, amt);
     printf("%d %s\n", soln_val, target);
 
+    int n[3] = {1, 2, 3};
+    int* p = n;
+    int* x = p + sizeof(int);
+
+
+
+
     return 0;
 }

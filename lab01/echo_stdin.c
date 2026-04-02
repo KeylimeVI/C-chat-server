@@ -5,7 +5,7 @@
  * press Enter), and prints that to standard output.
  *
  * There is an error in this file either in the code or in the comments. See
- * if you can figure out what is wrong. It is not a serious error that might 
+ * if you can figure out what is wrong. It is not a serious error that might
  * potentially lead to incorrect output or the process aborting.
  */
 

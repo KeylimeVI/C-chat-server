@@ -158,6 +158,102 @@ int send_join_message(client_state_t *state, const char *username) {
     return 0;
 }
 
+// Send channel join message to server
+int send_channel_join_message(client_state_t *state, const char *channel_name) {
+    channel_join_data_t join_data;
+    
+    if (!state->connected) {
+        fprintf(stderr, "Error: Not connected to server\n");
+        return -1;
+    }
+    
+    if (!state->authenticated) {
+        fprintf(stderr, "Error: You must join with a username first\n");
+        return -1;
+    }
+    
+    // Check channel name length
+    if (strlen(channel_name) >= MAX_CHANNEL_LEN) {
+        fprintf(stderr, "Error: Channel name too long (max %d characters)\n", MAX_CHANNEL_LEN - 1);
+        return -1;
+    }
+    
+    // Prepare join data
+    strncpy(join_data.channel, channel_name, MAX_CHANNEL_LEN - 1);
+    join_data.channel[MAX_CHANNEL_LEN - 1] = '\0';
+    
+    // Send message
+    if (send_message(state->sockfd, MSG_TYPE_CHANNEL_JOIN, &join_data, sizeof(join_data)) < 0) {
+        perror("send_message");
+        client_disconnect(state);
+        return -1;
+    }
+    
+    printf("Joining channel '%s'...\n", channel_name);
+    fflush(stdout);
+    return 0;
+}
+
+// Send channel create message to server
+int send_channel_create_message(client_state_t *state, const char *channel_name) {
+    channel_create_data_t create_data;
+    
+    if (!state->connected) {
+        fprintf(stderr, "Error: Not connected to server\n");
+        return -1;
+    }
+    
+    if (!state->authenticated) {
+        fprintf(stderr, "Error: You must join with a username first\n");
+        return -1;
+    }
+    
+    // Check channel name length
+    if (strlen(channel_name) >= MAX_CHANNEL_LEN) {
+        fprintf(stderr, "Error: Channel name too long (max %d characters)\n", MAX_CHANNEL_LEN - 1);
+        return -1;
+    }
+    
+    // Prepare create data
+    strncpy(create_data.channel, channel_name, MAX_CHANNEL_LEN - 1);
+    create_data.channel[MAX_CHANNEL_LEN - 1] = '\0';
+    
+    // Send message
+    if (send_message(state->sockfd, MSG_TYPE_CHANNEL_CREATE, &create_data, sizeof(create_data)) < 0) {
+        perror("send_message");
+        client_disconnect(state);
+        return -1;
+    }
+    
+    printf("Creating channel '%s'...\n", channel_name);
+    fflush(stdout);
+    return 0;
+}
+
+// Send channel list request to server
+int send_channel_list_message(client_state_t *state) {
+    if (!state->connected) {
+        fprintf(stderr, "Error: Not connected to server\n");
+        return -1;
+    }
+    
+    if (!state->authenticated) {
+        fprintf(stderr, "Error: You must join with a username first\n");
+        return -1;
+    }
+    
+    // Send message
+    if (send_message(state->sockfd, MSG_TYPE_CHANNEL_LIST, NULL, 0) < 0) {
+        perror("send_message");
+        client_disconnect(state);
+        return -1;
+    }
+    
+    printf("Requesting channel list...\n");
+    fflush(stdout);
+    return 0;
+}
+
 // Send CHAT message to server
 int send_chat_message(client_state_t *state, const char *message) {
     chat_data_t chat_data;
@@ -257,6 +353,27 @@ int handle_server_messages(client_state_t *state) {
             handle_chat_message(chat_data.username, chat_data.message);
             break;
         }
+        
+        case MSG_TYPE_CHANNEL_INFO: {
+            if (header.length != sizeof(channel_info_data_t)) {
+                fprintf(stderr, "Error: Invalid channel info message format\n");
+                break;
+            }
+            
+            channel_info_data_t info_data;
+            if (receive_message_data(state->sockfd, &info_data, sizeof(info_data)) < 0) {
+                printf("Server disconnected\n");
+                client_disconnect(state);
+                return -1;
+            }
+            
+            // Handle channel info (could display channel details)
+            printf("Channel: %s (%d users)\n", info_data.channel, info_data.user_count);
+            if (strlen(info_data.users) > 0) {
+                printf("Users: %s\n", info_data.users);
+            }
+            break;
+        }
 
         case MSG_TYPE_ERROR: {
             if (header.length != sizeof(error_data_t)) {
@@ -347,9 +464,13 @@ void process_user_input(client_state_t *state, const char *input) {
             printf("\r\x1b[2KGoodbye!\n");
             client_cleanup(state);
             exit(0);
+        } else if (strcmp(command, "channel") == 0) {
+            send_channel_join_message(state, argument);
+        } else if (strcmp(command, "create") == 0) {
+            send_channel_create_message(state, argument);
         } else {
             printf("\r\x1b[2KUnknown command: /%s\n", command);
-            printf("Available commands: /join <username>, /quit\n");
+            printf("Available commands: /join <username>, /channel <name>, /create <name>, /list, /quit\n");
         }
     } else if (sscanf(input, "/%63s", command) == 1) {
         // Command without argument
@@ -359,9 +480,15 @@ void process_user_input(client_state_t *state, const char *input) {
             exit(0);
         } else if (strcmp(command, "join") == 0) {
             printf("\r\x1b[2KUsage: /join <username>\n");
+        } else if (strcmp(command, "channel") == 0) {
+            printf("\r\x1b[2KUsage: /channel <channelname>\n");
+        } else if (strcmp(command, "create") == 0) {
+            printf("\r\x1b[2KUsage: /create <channelname>\n");
+        } else if (strcmp(command, "list") == 0) {
+            send_channel_list_message(state);
         } else {
             printf("\r\x1b[2KUnknown command: /%s\n", command);
-            printf("Available commands: /join <username>, /quit\n");
+            printf("Available commands: /join <username>, /channel <name>, /create <name>, /list, /quit\n");
         }
     } else {
         // Regular chat message
@@ -389,6 +516,9 @@ void client_run(client_state_t *state) {
 
     printf("Chat Client\n");
     printf("Type /join <username> to join the chat\n");
+    printf("Type /channel <name> to join a channel\n");
+    printf("Type /create <name> to create a channel\n");
+    printf("Type /list to list all channels\n");
     printf("Type /quit to exit\n");
     printf("Type a message and press Enter to send\n\n");
 

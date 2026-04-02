@@ -11,6 +11,10 @@ typedef enum {
     MSG_TYPE_SERVER = 4,    // Server notification/broadcast
     MSG_TYPE_ERROR = 5,     // Error message from server
     MSG_TYPE_ACK = 6,       // Acknowledgment
+    MSG_TYPE_CHANNEL_JOIN = 7,  // Client joining a channel
+    MSG_TYPE_CHANNEL_CREATE = 8, // Client creating a channel
+    MSG_TYPE_CHANNEL_LIST = 9,   // Client requesting channel list
+    MSG_TYPE_CHANNEL_INFO = 10,  // Server sending channel info
     // Future command types will be added here
 } message_type_t;
 
@@ -18,6 +22,7 @@ typedef enum {
 #define MAX_USERNAME_LEN 32
 #define MAX_CHANNEL_LEN 32
 #define MAX_MESSAGE_LEN 1024
+#define MAX_CHANNELS 100
 
 // Message header - fixed size, always sent first
 typedef struct {
@@ -30,9 +35,33 @@ typedef struct {
     char username[MAX_USERNAME_LEN];
 } join_data_t;
 
+// Channel join message data (client -> server)
+typedef struct {
+    char channel[MAX_CHANNEL_LEN];
+} channel_join_data_t;
+
+// Channel create message data (client -> server)
+typedef struct {
+    char channel[MAX_CHANNEL_LEN];
+} channel_create_data_t;
+
+// Channel info message data (server -> client)
+typedef struct {
+    char channel[MAX_CHANNEL_LEN];
+    int user_count;
+    char users[MAX_USERNAME_LEN * 10]; // Comma-separated list of usernames
+} channel_info_data_t;
+
+// Channel list message data (server -> client)
+typedef struct {
+    int channel_count;
+    char channels[MAX_CHANNEL_LEN * MAX_CHANNELS]; // Comma-separated list
+} channel_list_data_t;
+
 // Chat message data (client -> server, server -> client)
 typedef struct {
     char username[MAX_USERNAME_LEN];
+    char channel[MAX_CHANNEL_LEN];
     char message[MAX_MESSAGE_LEN];
 } chat_data_t;
 
