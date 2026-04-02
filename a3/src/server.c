@@ -96,6 +96,7 @@ int server_init(server_state_t *state, int port) {
 // Clean up server resources
 void server_cleanup(server_state_t *state) {
     client_t *client, *next;
+    channel_t *channel, *next_channel;
 
     printf("Cleaning up server resources...\n");
 
@@ -106,6 +107,14 @@ void server_cleanup(server_state_t *state) {
         free(client);
     }
     state->clients = NULL;
+
+    // Free all channels and their history
+    for (channel = state->channels; channel != NULL; channel = next_channel) {
+        next_channel = channel->next;
+        channel_free_history(channel);
+        free(channel);
+    }
+    state->channels = NULL;
 
     // Close server socket
     if (state->server_fd >= 0) {
@@ -251,6 +260,7 @@ void handle_new_connection(server_state_t *state) {
 
 // Handle JOIN message from client (username join)
 static void handle_join_message(server_state_t *state, client_t *client, const join_data_t *join_data) {
+
     // Check if username is already taken
     if (client_find_by_username(state, join_data->username) != NULL) {
         send_error_message(client->fd, "Username already taken");
@@ -274,6 +284,9 @@ static void handle_join_message(server_state_t *state, client_t *client, const j
 
         channel_t *channel = channel_find(state, client->channel);
         if (channel != NULL) {
+            // Send channel history to the newly joined client
+            channel_send_history(channel, client->fd);
+            // Broadcast join notification to all clients in channel
             channel_broadcast(state, channel, "SERVER", notification, -1);
         }
     }
@@ -284,6 +297,7 @@ static void handle_join_message(server_state_t *state, client_t *client, const j
 
 // Handle CHAT message from client
 static void handle_chat_message(server_state_t *state, client_t *client, const chat_data_t *chat_data) {
+
     // Check if client is authenticated
     if (!client->authenticated) {
         send_error_message(client->fd, "You must join first with /join <username>");
@@ -310,6 +324,8 @@ void handle_client_message(server_state_t *state, int client_fd) {
     client_t *client = client_find_by_fd(state, client_fd);
     message_header_t header;
 
+
+    
     if (client == NULL) {
         // Client not found, remove it
         client_remove(state, client_fd);
@@ -525,6 +541,104 @@ void channel_remove_client(channel_t *channel, client_t *client) {
     }
 }
 
+// Add a message to channel history
+void channel_add_to_history(channel_t *channel, const char *username, const char *message) {
+
+    // Create new history node
+    message_node_t *new_node = malloc(sizeof(message_node_t));
+    if (new_node == NULL) {
+        perror("malloc");
+        return;
+    }
+
+    // Allocate and copy username
+    new_node->username = strdup(username);
+    if (new_node->username == NULL) {
+        perror("strdup");
+        free(new_node);
+        return;
+    }
+
+    // Allocate and copy message
+    new_node->message = strdup(message);
+    if (new_node->message == NULL) {
+        perror("strdup");
+        free(new_node->username);
+        free(new_node);
+        return;
+    }
+
+    new_node->next = NULL;
+
+    // Add to end of history list
+    if (channel->history == NULL) {
+        channel->history = new_node;
+    } else {
+        message_node_t *current = channel->history;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = new_node;
+    }
+
+    channel->history_count++;
+
+    // Enforce MAX_HISTORY limit by removing oldest messages
+    while (channel->history_count > MAX_HISTORY && channel->history != NULL) {
+        message_node_t *oldest = channel->history;
+        channel->history = oldest->next;
+        free(oldest->username);
+        free(oldest->message);
+        free(oldest);
+        channel->history_count--;
+    }
+}
+
+// Send channel history to a client
+void channel_send_history(channel_t *channel, int client_fd) {
+    message_node_t *current = channel->history;
+    chat_data_t chat_data;
+
+
+    
+    // No history to send
+    if (current == NULL) {
+        return;
+    }
+
+    // Prepare common chat data (channel name)
+    strncpy(chat_data.channel, channel->name, MAX_CHANNEL_LEN - 1);
+    chat_data.channel[MAX_CHANNEL_LEN - 1] = '\0';
+
+    // Send each message in history
+    while (current != NULL) {
+        strncpy(chat_data.username, current->username, MAX_USERNAME_LEN - 1);
+        chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
+        strncpy(chat_data.message, current->message, MAX_MESSAGE_LEN - 1);
+        chat_data.message[MAX_MESSAGE_LEN - 1] = '\0';
+
+        send_message(client_fd, MSG_TYPE_CHAT, &chat_data, sizeof(chat_data));
+        current = current->next;
+    }
+}
+
+// Free all history nodes in a channel
+void channel_free_history(channel_t *channel) {
+    message_node_t *current = channel->history;
+    message_node_t *next;
+
+    while (current != NULL) {
+        next = current->next;
+        free(current->username);
+        free(current->message);
+        free(current);
+        current = next;
+    }
+
+    channel->history = NULL;
+    channel->history_count = 0;
+}
+
 // Broadcast a message to all clients in a channel
 void channel_broadcast(server_state_t *state, channel_t *channel, const char *username, const char *message, int exclude_fd) {
     (void)state; // Unused parameter
@@ -532,6 +646,9 @@ void channel_broadcast(server_state_t *state, channel_t *channel, const char *us
     chat_data_t chat_data;
 
 
+    
+    // Add message to channel history
+    channel_add_to_history(channel, username, message);
 
     // Prepare chat message
     strncpy(chat_data.username, username, MAX_USERNAME_LEN - 1);
@@ -544,69 +661,8 @@ void channel_broadcast(server_state_t *state, channel_t *channel, const char *us
     // Send to all clients in the channel
     for (client = channel->members; client != NULL; client = client->next_in_channel) {
         if (client->authenticated && client->fd != exclude_fd) {
-
             send_message(client->fd, MSG_TYPE_CHAT, &chat_data, sizeof(chat_data));
         }
-
-        // Add a message to channel history
-        void channel_add_to_history(channel_t *channel, const char *username, const char *message) {
-            // Create new history node
-            message_node_t *new_node = malloc(sizeof(message_node_t));
-            if (new_node == NULL) {
-                perror("malloc");
-                return;
-            }
-    
-            // Allocate and copy username
-            new_node->username = strdup(username);
-            if (new_node->username == NULL) {
-                perror("strdup");
-                free(new_node);
-                return;
-            }
-    
-            // Allocate and copy message
-            new_node->message = strdup(message);
-            if (new_node->message == NULL) {
-                perror("strdup");
-                free(new_node->username);
-                free(new_node);
-                return;
-            }
-    
-            new_node->next = NULL;
-    
-            // Add to end of history list
-            if (channel->history == NULL) {
-                channel->history = new_node;
-            } else {
-                message_node_t *current = channel->history;
-                while (current->next != NULL) {
-                    current = current->next;
-                }
-                current->next = new_node;
-            }
-    
-            channel->history_count++;
-    
-            // Enforce MAX_HISTORY limit by removing oldest messages
-            while (channel->history_count > MAX_HISTORY && channel->history != NULL) {
-                message_node_t *oldest = channel->history;
-                channel->history = oldest->next;
-                free(oldest->username);
-                free(oldest->message);
-                free(oldest);
-                channel->history_count--;
-            }
-        }
-
-        // Send channel history to a client
-        void channel_send_history(channel_t *channel, int client_fd) {
-            message_node_t *current = channel->history;
-            chat_data_t chat_data;
-    
-            // No history to send
-            if (current ==
     }
 }
 
@@ -693,6 +749,7 @@ void channel_list_all(server_state_t *state, char *buffer, size_t buffer_size) {
 
 // Handle channel join request
 void handle_channel_join(server_state_t *state, client_t *client, const char *channel_name) {
+
     // Check if client is authenticated
     if (!client->authenticated) {
         send_error_message(client->fd, "You must join with a username first");
@@ -725,6 +782,9 @@ void handle_channel_join(server_state_t *state, client_t *client, const char *ch
     strncpy(client->channel, channel_name, sizeof(client->channel) - 1);
     client->channel[sizeof(client->channel) - 1] = '\0';
 
+    // Send channel history to client
+    channel_send_history(channel, client->fd);
+
     // Send success message
     char success_msg[MAX_MESSAGE_LEN];
     snprintf(success_msg, sizeof(success_msg),
@@ -742,6 +802,7 @@ void handle_channel_join(server_state_t *state, client_t *client, const char *ch
 
 // Handle channel create request
 void handle_channel_create(server_state_t *state, client_t *client, const char *channel_name) {
+
     // Check if client is authenticated
     if (!client->authenticated) {
         send_error_message(client->fd, "You must join with a username first");
@@ -790,6 +851,9 @@ void handle_channel_create(server_state_t *state, client_t *client, const char *
     channel_add_client(channel, client);
     strncpy(client->channel, channel_name, sizeof(client->channel) - 1);
     client->channel[sizeof(client->channel) - 1] = '\0';
+
+    // Send channel history to client
+    channel_send_history(channel, client->fd);
 
     // Send success message
     char success_msg[MAX_MESSAGE_LEN];
