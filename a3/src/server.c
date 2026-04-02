@@ -299,7 +299,7 @@ static void handle_chat_message(server_state_t *state, client_t *client, const c
     // Broadcast message to clients in the same channel
     channel_t *channel = channel_find(state, client->channel);
     if (channel != NULL) {
-        channel_broadcast(state, channel, client->username, chat_data->message, client->fd);
+        channel_broadcast(state, channel, client->username, chat_data->message, -1);
     }
 
     printf("Message from %s in channel %s: %s\n", client->username, client->channel, chat_data->message);
@@ -471,6 +471,8 @@ channel_t *channel_create(server_state_t *state, const char *channel_name) {
     strncpy(new_channel->name, channel_name, sizeof(new_channel->name) - 1);
     new_channel->name[sizeof(new_channel->name) - 1] = '\0';
     new_channel->members = NULL;
+    new_channel->history = NULL;
+    new_channel->history_count = 0;
 
     // Add to linked list
     new_channel->next = state->channels;
@@ -529,6 +531,8 @@ void channel_broadcast(server_state_t *state, channel_t *channel, const char *us
     client_t *client;
     chat_data_t chat_data;
 
+
+
     // Prepare chat message
     strncpy(chat_data.username, username, MAX_USERNAME_LEN - 1);
     chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
@@ -540,8 +544,69 @@ void channel_broadcast(server_state_t *state, channel_t *channel, const char *us
     // Send to all clients in the channel
     for (client = channel->members; client != NULL; client = client->next_in_channel) {
         if (client->authenticated && client->fd != exclude_fd) {
+
             send_message(client->fd, MSG_TYPE_CHAT, &chat_data, sizeof(chat_data));
         }
+
+        // Add a message to channel history
+        void channel_add_to_history(channel_t *channel, const char *username, const char *message) {
+            // Create new history node
+            message_node_t *new_node = malloc(sizeof(message_node_t));
+            if (new_node == NULL) {
+                perror("malloc");
+                return;
+            }
+    
+            // Allocate and copy username
+            new_node->username = strdup(username);
+            if (new_node->username == NULL) {
+                perror("strdup");
+                free(new_node);
+                return;
+            }
+    
+            // Allocate and copy message
+            new_node->message = strdup(message);
+            if (new_node->message == NULL) {
+                perror("strdup");
+                free(new_node->username);
+                free(new_node);
+                return;
+            }
+    
+            new_node->next = NULL;
+    
+            // Add to end of history list
+            if (channel->history == NULL) {
+                channel->history = new_node;
+            } else {
+                message_node_t *current = channel->history;
+                while (current->next != NULL) {
+                    current = current->next;
+                }
+                current->next = new_node;
+            }
+    
+            channel->history_count++;
+    
+            // Enforce MAX_HISTORY limit by removing oldest messages
+            while (channel->history_count > MAX_HISTORY && channel->history != NULL) {
+                message_node_t *oldest = channel->history;
+                channel->history = oldest->next;
+                free(oldest->username);
+                free(oldest->message);
+                free(oldest);
+                channel->history_count--;
+            }
+        }
+
+        // Send channel history to a client
+        void channel_send_history(channel_t *channel, int client_fd) {
+            message_node_t *current = channel->history;
+            chat_data_t chat_data;
+    
+            // No history to send
+            if (current ==
     }
 }
 

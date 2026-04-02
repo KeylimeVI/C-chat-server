@@ -9,11 +9,21 @@
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 4096
 #define MAX_CHANNELS 100
+#define MAX_HISTORY 100  // Maximum number of messages to store in channel history
+
+// Message history node structure
+typedef struct message_node {
+    char *username;             // Username who sent the message (or "SERVER" for notifications)
+    char *message;              // The message content
+    struct message_node *next;  // Next message in history
+} message_node_t;
 
 // Channel structure
 typedef struct channel {
     char name[32];              // Channel name
     struct client *members;     // Linked list of members
+    message_node_t *history;    // Linked list of message history
+    int history_count;          // Number of messages in history
     struct channel *next;       // Next channel in linked list
 } channel_t;
 
@@ -53,6 +63,9 @@ channel_t *channel_find(server_state_t *state, const char *channel_name);
 void channel_add_client(channel_t *channel, client_t *client);
 void channel_remove_client(channel_t *channel, client_t *client);
 void channel_broadcast(server_state_t *state, channel_t *channel, const char *username, const char *message, int exclude_fd);
+void channel_add_to_history(channel_t *channel, const char *username, const char *message);
+void channel_send_history(channel_t *channel, int client_fd);
+void channel_free_history(channel_t *channel);
 void channel_list_clients(server_state_t *state, channel_t *channel, char *buffer, size_t buffer_size);
 int channel_count_members(channel_t *channel);
 void channel_list_all(server_state_t *state, char *buffer, size_t buffer_size);
