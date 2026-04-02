@@ -27,6 +27,7 @@ static void signal_handler(int sig) {
 int client_init(client_state_t *state, const char *hostname, int port) {
     // Initialize state
     memset(state, 0, sizeof(client_state_t));
+    strcpy(state->color, "white");  // Default color
     state->sockfd = -1;
     state->connected = 0;
     state->authenticated = 0;
@@ -290,6 +291,42 @@ int send_chat_message(client_state_t *state, const char *message) {
     return 0;
 }
 
+// Send COLOR message to server
+int send_color_message(client_state_t *state, const char *color) {
+    color_data_t color_data;
+
+    if (!state->connected) {
+        fprintf(stderr, "Error: Not connected to server\n");
+        return -1;
+    }
+
+    if (!state->authenticated) {
+        fprintf(stderr, "Error: You must join first with /join <username>\n");
+        return -1;
+    }
+
+    // Check color length
+    if (strlen(color) >= 32) {
+        fprintf(stderr, "Error: Color name too long\n");
+        return -1;
+    }
+
+    // Prepare color data
+    strncpy(color_data.username, state->username, MAX_USERNAME_LEN - 1);
+    color_data.username[MAX_USERNAME_LEN - 1] = '\0';
+    strncpy(color_data.color, color, sizeof(color_data.color) - 1);
+    color_data.color[sizeof(color_data.color) - 1] = '\0';
+
+    // Send message
+    if (send_message(state->sockfd, MSG_TYPE_COLOR, &color_data, sizeof(color_data)) < 0) {
+        perror("send_message");
+        client_disconnect(state);
+        return -1;
+    }
+
+    return 0;
+}
+
 // Send LEAVE message to server
 int send_leave_message(client_state_t *state) {
     if (!state->connected) {
@@ -353,7 +390,7 @@ int handle_server_messages(client_state_t *state) {
             handle_chat_message(chat_data.username, chat_data.message);
             break;
         }
-        
+
         case MSG_TYPE_CHANNEL_INFO: {
             if (header.length != sizeof(channel_info_data_t)) {
                 fprintf(stderr, "Error: Invalid channel info message format\n");
@@ -372,6 +409,23 @@ int handle_server_messages(client_state_t *state) {
             if (strlen(info_data.users) > 0) {
                 printf("Users: %s\n", info_data.users);
             }
+            break;
+        }
+
+        case MSG_TYPE_COLOR: {
+            if (header.length != sizeof(color_data_t)) {
+                fprintf(stderr, "Error: Invalid COLOR message format\n");
+                break;
+            }
+
+            color_data_t color_data;
+            if (receive_message_data(state->sockfd, &color_data, sizeof(color_data)) < 0) {
+                printf("Server disconnected\n");
+                client_disconnect(state);
+                return -1;
+            }
+
+            handle_color_message(color_data.username, color_data.color);
             break;
         }
 
@@ -434,6 +488,15 @@ void handle_error_message(const char *error_message) {
     fflush(stdout);
 }
 
+// Handle COLOR message from server
+void handle_color_message(const char *username, const char *color) {
+    // Color messages are informational - the client already displays usernames with color codes
+    // This function could be used to update local color cache if needed
+    // For now, just acknowledge receipt
+    (void)username;
+    (void)color;
+}
+
 // Print command prompt
 void print_prompt(void) {
     printf("> ");
@@ -468,9 +531,11 @@ void process_user_input(client_state_t *state, const char *input) {
             send_channel_join_message(state, argument);
         } else if (strcmp(command, "create") == 0) {
             send_channel_create_message(state, argument);
+        } else if (strcmp(command, "color") == 0) {
+            send_color_message(state, argument);
         } else {
             printf("\r\x1b[2KUnknown command: /%s\n", command);
-            printf("Available commands: /join <username>, /channel <name>, /create <name>, /list, /quit\n");
+            printf("Available commands: /join <username>, /channel <name>, /create <name>, /color <color>, /list, /quit\n");
         }
     } else if (sscanf(input, "/%63s", command) == 1) {
         // Command without argument
@@ -484,11 +549,14 @@ void process_user_input(client_state_t *state, const char *input) {
             printf("\r\x1b[2KUsage: /channel <channelname>\n");
         } else if (strcmp(command, "create") == 0) {
             printf("\r\x1b[2KUsage: /create <channelname>\n");
+        } else if (strcmp(command, "color") == 0) {
+            printf("\r\x1b[2KUsage: /color <color>\n");
+            printf("Available colors: white, red, orange, yellow, green, turquoise, blue, purple\n");
         } else if (strcmp(command, "list") == 0) {
             send_channel_list_message(state);
         } else {
             printf("\r\x1b[2KUnknown command: /%s\n", command);
-            printf("Available commands: /join <username>, /channel <name>, /create <name>, /list, /quit\n");
+            printf("Available commands: /join <username>, /channel <name>, /create <name>, /color <color>, /list, /quit\n");
         }
     } else {
         // Regular chat message
@@ -518,6 +586,7 @@ void client_run(client_state_t *state) {
     printf("Type /join <username> to join the chat\n");
     printf("Type /channel <name> to join a channel\n");
     printf("Type /create <name> to create a channel\n");
+    printf("Type /color <color> to change your username color\n");
     printf("Type /list to list all channels\n");
     printf("Type /quit to exit\n");
     printf("Type a message and press Enter to send\n\n");

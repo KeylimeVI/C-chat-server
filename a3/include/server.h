@@ -30,8 +30,9 @@ typedef struct channel {
 // Client state structure
 typedef struct client {
     int fd;                     // Socket file descriptor
-    char username[32];          // Client username (empty if not set)
+    char username[64];          // Client username (empty if not set)
     char channel[32];           // Current channel (empty if not in channel)
+    char color[16];             // Color for username display
     int authenticated;          // Whether client has sent JOIN message
     struct client *next;        // Next client in linked list
     struct client *next_in_channel; // Next client in channel member list
@@ -62,8 +63,8 @@ channel_t *channel_create(server_state_t *state, const char *channel_name);
 channel_t *channel_find(server_state_t *state, const char *channel_name);
 void channel_add_client(channel_t *channel, client_t *client);
 void channel_remove_client(channel_t *channel, client_t *client);
-void channel_broadcast(server_state_t *state, channel_t *channel, const char *username, const char *message, int exclude_fd);
-void channel_add_to_history(channel_t *channel, const char *username, const char *message);
+void channel_broadcast(server_state_t *state, channel_t *channel, client_t *sender, const char *message, int exclude_fd);
+void channel_add_to_history(channel_t *channel, client_t *sender, const char *message);
 void channel_send_history(channel_t *channel, int client_fd);
 void channel_free_history(channel_t *channel);
 void channel_list_clients(server_state_t *state, channel_t *channel, char *buffer, size_t buffer_size);
@@ -76,6 +77,10 @@ void handle_client_message(server_state_t *state, int client_fd);
 void broadcast_message(server_state_t *state, const char *username, const char *message);
 void send_server_message(int client_fd, const char *message);
 void send_error_message(int client_fd, const char *error_message);
+
+// Color handling
+void handle_color_message(server_state_t *state, client_t *client, const char *color);
+void broadcast_color_change(server_state_t *state, client_t *client, const char *color);
 
 // Channel message handling
 void handle_channel_join(server_state_t *state, client_t *client, const char *channel_name);

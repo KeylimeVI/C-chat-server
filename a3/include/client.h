@@ -9,7 +9,8 @@
 // Client state structure
 typedef struct client_state {
     int sockfd;                     // Socket file descriptor
-    char username[32];              // Client's username
+    char username[64];              // Client's username (supports color codes)
+    char color[16];                 // User's selected color
     int connected;                  // Whether client is connected to server
     int authenticated;              // Whether client has joined with username
     fd_set master_set;              // File descriptor set for select()
@@ -28,12 +29,14 @@ void client_disconnect(client_state_t *state);
 int send_join_message(client_state_t *state, const char *username);
 int send_chat_message(client_state_t *state, const char *message);
 int send_leave_message(client_state_t *state);
+int send_color_message(client_state_t *state, const char *color);
 
 // Message receiving and handling
 int handle_server_messages(client_state_t *state);
 void handle_server_message(const char *message);
 void handle_chat_message(const char *username, const char *message);
 void handle_error_message(const char *error_message);
+void handle_color_message(const char *username, const char *color);
 
 // User interface
 void print_prompt(void);

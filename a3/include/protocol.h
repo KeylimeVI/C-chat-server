@@ -15,11 +15,12 @@ typedef enum {
     MSG_TYPE_CHANNEL_CREATE = 8, // Client creating a channel
     MSG_TYPE_CHANNEL_LIST = 9,   // Client requesting channel list
     MSG_TYPE_CHANNEL_INFO = 10,  // Server sending channel info
+    MSG_TYPE_COLOR = 11,         // Client changing color or server broadcasting color change
     // Future command types will be added here
 } message_type_t;
 
 // Maximum lengths for various fields
-#define MAX_USERNAME_LEN 32
+#define MAX_USERNAME_LEN 64
 #define MAX_CHANNEL_LEN 32
 #define MAX_MESSAGE_LEN 1024
 #define MAX_CHANNELS 100
@@ -74,6 +75,12 @@ typedef struct {
 typedef struct {
     char error_message[MAX_MESSAGE_LEN];
 } error_data_t;
+
+// Color change message data (client -> server, server -> client)
+typedef struct {
+    char username[MAX_USERNAME_LEN];
+    char color[32];
+} color_data_t;
 
 // Function prototypes for protocol handling
 int send_message(int fd, message_type_t type, const void *data, uint32_t data_len);

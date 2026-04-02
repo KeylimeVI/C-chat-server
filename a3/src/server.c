@@ -13,11 +13,39 @@
 // Global server state for signal handler
 static server_state_t *g_server_state = NULL;
 
+// Helper function to get ANSI color code from color name
+static const char* get_color_code(const char *color_name) {
+    fprintf(stderr, "DEBUG get_color_code: color_name='%s'\n", color_name);
+    if (strcmp(color_name, "red") == 0) return "\033[31m";
+    if (strcmp(color_name, "orange") == 0) return "\033[38;5;214m"; // orange is not standard, use 256-color code
+    if (strcmp(color_name, "yellow") == 0) return "\033[33m";
+    if (strcmp(color_name, "green") == 0) return "\033[32m";
+    if (strcmp(color_name, "turquoise") == 0) return "\033[36m";
+    if (strcmp(color_name, "blue") == 0) return "\033[34m";
+    if (strcmp(color_name, "purple") == 0) return "\033[35m";
+    if (strcmp(color_name, "white") == 0) return "\033[37m";
+    fprintf(stderr, "DEBUG get_color_code: defaulting to white for '%s'\n", color_name);
+    return "\033[37m"; // default white
+}
+
+// Helper function to format username with color for display
+static void format_colored_username(const client_t *client, char *buffer, size_t buffer_size) {
+    const char *color_code = get_color_code(client->color);
+    const char *reset_code = "\033[0m";
+    
+    snprintf(buffer, buffer_size, "%s%s%s", color_code, client->username, reset_code);
+    
+    // Debug print
+    fprintf(stderr, "DEBUG format_colored_username: client=%s, color=%s, code=%s, formatted='%s'\n",
+            client->username, client->color, color_code, buffer);
+}
+
 // Helper function to initialize a new client
 static void client_init(client_t *client, int fd) {
     memset(client, 0, sizeof(client_t));
     client->fd = fd;
     client->username[0] = '\0';
+    strcpy(client->color, "white");
     client->channel[0] = '\0';
     client->authenticated = 0;
     client->next = NULL;
@@ -287,7 +315,7 @@ static void handle_join_message(server_state_t *state, client_t *client, const j
             // Send channel history to the newly joined client
             channel_send_history(channel, client->fd);
             // Broadcast join notification to all clients in channel
-            channel_broadcast(state, channel, "SERVER", notification, -1);
+            channel_broadcast(state, channel, NULL, notification, -1);
         }
     }
 
@@ -313,10 +341,77 @@ static void handle_chat_message(server_state_t *state, client_t *client, const c
     // Broadcast message to clients in the same channel
     channel_t *channel = channel_find(state, client->channel);
     if (channel != NULL) {
-        channel_broadcast(state, channel, client->username, chat_data->message, -1);
+        channel_broadcast(state, channel, client, chat_data->message, -1);
     }
 
     printf("Message from %s in channel %s: %s\n", client->username, client->channel, chat_data->message);
+}
+
+// Handle COLOR message from client
+void handle_color_message(server_state_t *state, client_t *client, const char *color) {
+    fprintf(stderr, "DEBUG handle_color_message: client=%s, requested_color=%s\n", client->username, color);
+    // Check if client is authenticated
+    if (!client->authenticated) {
+        send_error_message(client->fd, "You must join first with /join <username>");
+        return;
+    }
+
+    // Validate color
+    if (strcmp(color, "white") != 0 &&
+        strcmp(color, "red") != 0 &&
+        strcmp(color, "orange") != 0 &&
+        strcmp(color, "yellow") != 0 &&
+        strcmp(color, "green") != 0 &&
+        strcmp(color, "turquoise") != 0 &&
+        strcmp(color, "blue") != 0 &&
+        strcmp(color, "purple") != 0) {
+        fprintf(stderr, "DEBUG: Invalid color '%s' rejected\n", color);
+        send_error_message(client->fd, "Invalid color. Available colors: white, red, orange, yellow, green, turquoise, blue, purple");
+        return;
+    }
+
+    fprintf(stderr, "DEBUG: Valid color '%s' accepted for client %s\n", color, client->username);
+    // Update client's color
+    strncpy(client->color, color, sizeof(client->color) - 1);
+    client->color[sizeof(client->color) - 1] = '\0';
+
+    // Broadcast color change to all clients in the same channel
+    broadcast_color_change(state, client, color);
+}
+
+// Broadcast color change to clients in the same channel
+void broadcast_color_change(server_state_t *state, client_t *client, const char *color) {
+    fprintf(stderr, "DEBUG broadcast_color_change: client=%s, color=%s, channel=%s\n", 
+            client->username, color, client->channel);
+    if (strlen(client->channel) == 0) {
+        // Client not in a channel, nothing to broadcast
+        fprintf(stderr, "DEBUG: client not in a channel\n");
+        return;
+    }
+
+    channel_t *channel = channel_find(state, client->channel);
+    if (channel == NULL) {
+        fprintf(stderr, "DEBUG: channel not found\n");
+        return;
+    }
+
+    color_data_t color_data;
+    strncpy(color_data.username, client->username, MAX_USERNAME_LEN - 1);
+    color_data.username[MAX_USERNAME_LEN - 1] = '\0';
+    strncpy(color_data.color, color, sizeof(color_data.color) - 1);
+    color_data.color[sizeof(color_data.color) - 1] = '\0';
+
+    fprintf(stderr, "DEBUG: Sending color data to channel members\n");
+    // Send to all clients in the channel (including the sender)
+    client_t *channel_client;
+    for (channel_client = channel->members; channel_client != NULL; channel_client = channel_client->next_in_channel) {
+        if (channel_client->authenticated) {
+            fprintf(stderr, "DEBUG:   -> to client %s (fd=%d)\n", channel_client->username, channel_client->fd);
+            send_message(channel_client->fd, MSG_TYPE_COLOR, &color_data, sizeof(color_data));
+        }
+    }
+
+    printf("Client %s changed color to %s in channel %s\n", client->username, color, client->channel);
 }
 
 // Handle client message
@@ -413,6 +508,22 @@ void handle_client_message(server_state_t *state, int client_fd) {
         case MSG_TYPE_LEAVE: {
             // Client wants to leave gracefully
             client_remove(state, client_fd);
+            break;
+        }
+
+        case MSG_TYPE_COLOR: {
+            if (header.length != sizeof(color_data_t)) {
+                send_error_message(client_fd, "Invalid COLOR message format");
+                break;
+            }
+
+            color_data_t color_data;
+            if (receive_message_data(client_fd, &color_data, sizeof(color_data)) < 0) {
+                client_remove(state, client_fd);
+                return;
+            }
+
+            handle_color_message(state, client, color_data.color);
             break;
         }
 
@@ -542,24 +653,35 @@ void channel_remove_client(channel_t *channel, client_t *client) {
 }
 
 // Add a message to channel history
-void channel_add_to_history(channel_t *channel, const char *username, const char *message) {
+void channel_add_to_history(channel_t *channel, client_t *sender, const char *message) {
+    char *username_to_store;
+    
+    // Determine what username to store in history
+    if (sender == NULL) {
+        // Server message
+        username_to_store = strdup("SERVER");
+    } else {
+        // User message - store formatted username with color codes
+        char formatted_username[MAX_USERNAME_LEN];
+        format_colored_username(sender, formatted_username, sizeof(formatted_username));
+        username_to_store = strdup(formatted_username);
+    }
+    
+    if (username_to_store == NULL) {
+        perror("strdup");
+        return;
+    }
 
     // Create new history node
     message_node_t *new_node = malloc(sizeof(message_node_t));
     if (new_node == NULL) {
         perror("malloc");
+        free(username_to_store);
         return;
     }
 
-    // Allocate and copy username
-    new_node->username = strdup(username);
-    if (new_node->username == NULL) {
-        perror("strdup");
-        free(new_node);
-        return;
-    }
-
-    // Allocate and copy message
+    // Store formatted username and message
+    new_node->username = username_to_store;
     new_node->message = strdup(message);
     if (new_node->message == NULL) {
         perror("strdup");
@@ -640,19 +762,31 @@ void channel_free_history(channel_t *channel) {
 }
 
 // Broadcast a message to all clients in a channel
-void channel_broadcast(server_state_t *state, channel_t *channel, const char *username, const char *message, int exclude_fd) {
+void channel_broadcast(server_state_t *state, channel_t *channel, client_t *sender, const char *message, int exclude_fd) {
     (void)state; // Unused parameter
     client_t *client;
     chat_data_t chat_data;
+    char formatted_username[MAX_USERNAME_LEN];
 
-
+    // Determine username and color formatting
+    const char *username;
+    if (sender == NULL) {
+        // Server message, no color
+        username = "SERVER";
+        strncpy(chat_data.username, username, MAX_USERNAME_LEN - 1);
+        chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
+    } else {
+        // User message, apply color
+        format_colored_username(sender, formatted_username, sizeof(formatted_username));
+        strncpy(chat_data.username, formatted_username, MAX_USERNAME_LEN - 1);
+        chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
+        username = sender->username;
+    }
     
-    // Add message to channel history
-    channel_add_to_history(channel, username, message);
+    // Add message to channel history (store plain username for history)
+    channel_add_to_history(channel, sender, message);
 
     // Prepare chat message
-    strncpy(chat_data.username, username, MAX_USERNAME_LEN - 1);
-    chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
     strncpy(chat_data.channel, channel->name, MAX_CHANNEL_LEN - 1);
     chat_data.channel[MAX_CHANNEL_LEN - 1] = '\0';
     strncpy(chat_data.message, message, MAX_MESSAGE_LEN - 1);
@@ -773,7 +907,7 @@ void handle_channel_join(server_state_t *state, client_t *client, const char *ch
             char leave_msg[MAX_MESSAGE_LEN];
             snprintf(leave_msg, sizeof(leave_msg),
                     "*** %s has left the channel ***", client->username);
-            channel_broadcast(state, old_channel, "SERVER", leave_msg, -1);
+            channel_broadcast(state, old_channel, NULL, leave_msg, -1);
         }
     }
 
@@ -795,7 +929,7 @@ void handle_channel_join(server_state_t *state, client_t *client, const char *ch
     char join_msg[MAX_MESSAGE_LEN];
     snprintf(join_msg, sizeof(join_msg),
             "*** %s has joined the channel ***", client->username);
-    channel_broadcast(state, channel, "SERVER", join_msg, client->fd);
+    channel_broadcast(state, channel, NULL, join_msg, client->fd);
 
     printf("Client %s joined channel %s\n", client->username, channel_name);
 }
@@ -843,7 +977,7 @@ void handle_channel_create(server_state_t *state, client_t *client, const char *
             char leave_msg[MAX_MESSAGE_LEN];
             snprintf(leave_msg, sizeof(leave_msg),
                     "*** %s has left the channel ***", client->username);
-            channel_broadcast(state, old_channel, "SERVER", leave_msg, -1);
+            channel_broadcast(state, old_channel, NULL, leave_msg, -1);
         }
     }
 
