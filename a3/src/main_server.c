@@ -4,7 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 
-// Function to print usage information
+// Function to print usage information. Deepseek wrote this I'm lazy.
 static void print_usage(const char *program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
     printf("Options:\n");
@@ -15,8 +15,8 @@ static void print_usage(const char *program_name) {
 int main(int argc, char *argv[]) {
     int port = DEFAULT_PORT;
     int opt;
-    
-    // Parse command line arguments
+
+    // Parse command line arguments, Deepseek wrote this
     while ((opt = getopt(argc, argv, "p:h")) != -1) {
         switch (opt) {
             case 'p':
@@ -35,28 +35,28 @@ int main(int argc, char *argv[]) {
                 return 1;
         }
     }
-    
+
     // Check for extra arguments
     if (optind < argc) {
         fprintf(stderr, "Error: Unexpected argument '%s'\n", argv[optind]);
         print_usage(argv[0]);
         return 1;
     }
-    
+
     printf("Starting chat server on port %d...\n", port);
-    
+
     // Initialize server state
     server_state_t server_state;
     if (server_init(&server_state, port) < 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
     }
-    
+
     // Run server
     server_run(&server_state);
-    
+
     // Cleanup (should not reach here normally)
     server_cleanup(&server_state);
-    
+
     return 0;
 }

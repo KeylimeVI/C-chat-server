@@ -8,7 +8,7 @@
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT 4242
 
-// Function to print usage information
+// Function to print usage information, Deepseek wrote this
 static void print_usage(const char *program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
     printf("Options:\n");
@@ -21,8 +21,8 @@ int main(int argc, char *argv[]) {
     const char *hostname = DEFAULT_HOST;
     int port = DEFAULT_PORT;
     int opt;
-    
-    // Parse command line arguments
+
+    // Parse command line arguments, Deepseek wrote this
     while ((opt = getopt(argc, argv, "h:p:?")) != -1) {
         switch (opt) {
             case 'h':
@@ -44,28 +44,25 @@ int main(int argc, char *argv[]) {
                 return 1;
         }
     }
-    
+
     // Check for extra arguments
     if (optind < argc) {
         fprintf(stderr, "Error: Unexpected argument '%s'\n", argv[optind]);
         print_usage(argv[0]);
         return 1;
     }
-    
+
     printf("Connecting to chat server at %s:%d...\n", hostname, port);
-    
-    // Initialize client state
+
     client_state_t client_state;
     if (client_init(&client_state, hostname, port) < 0) {
         fprintf(stderr, "Failed to connect to server\n");
         return 1;
     }
-    
-    // Run client
+
     client_run(&client_state);
-    
-    // Cleanup
+
     client_cleanup(&client_state);
-    
+
     return 0;
 }
