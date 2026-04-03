@@ -39,10 +39,8 @@ static int write_exact(int fd, const void *buf, size_t n) {
         nwritten = write(fd, (const char*)buf + total_written, n - total_written);
         if (nwritten <= 0) {
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
-                // Would block or interrupted, try again
                 continue;
             }
-            // Real error
             return -1;
         }
         total_written += nwritten;
@@ -50,20 +48,16 @@ static int write_exact(int fd, const void *buf, size_t n) {
     return 0;
 }
 
-// Send a message with header and optional data
 int send_message(int fd, message_type_t type, const void *data, uint32_t data_len) {
     message_header_t header;
     
-    // Prepare header
     header.type = htonl((uint32_t)type);
     header.length = htonl(data_len);
     
-    // Send header
     if (write_exact(fd, &header, sizeof(header)) < 0) {
         return -1;
     }
     
-    // Send data if there is any
     if (data_len > 0 && data != NULL) {
         if (write_exact(fd, data, data_len) < 0) {
             return -1;
@@ -73,27 +67,23 @@ int send_message(int fd, message_type_t type, const void *data, uint32_t data_le
     return 0;
 }
 
-// Receive message header
 int receive_message_header(int fd, message_header_t *header) {
     if (read_exact(fd, header, sizeof(message_header_t)) < 0) {
         return -1;
     }
     
-    // Convert from network byte order
     header->type = ntohl(header->type);
     header->length = ntohl(header->length);
     
     return 0;
 }
 
-// Receive message data (after header has been read)
 int receive_message_data(int fd, void *data, uint32_t data_len) {
     if (data_len == 0) {
         return 0; // No data to read
     }
     
     if (data == NULL) {
-        // Invalid parameter
         return -1;
     }
     

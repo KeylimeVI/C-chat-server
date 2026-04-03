@@ -10,37 +10,32 @@
 #include <arpa/inet.h>
 #include <signal.h>
 
-// Global server state for signal handler
 static server_state_t *g_server_state = NULL;
 
-// Helper function to get ANSI color code from color name
+
 static const char* get_color_code(const char *color_name) {
-    fprintf(stderr, "DEBUG get_color_code: color_name='%s'\n", color_name);
+
     if (strcmp(color_name, "red") == 0) return "\033[31m";
-    if (strcmp(color_name, "orange") == 0) return "\033[38;5;214m"; // orange is not standard, use 256-color code
+    if (strcmp(color_name, "orange") == 0) return "\033[38;5;214m";
     if (strcmp(color_name, "yellow") == 0) return "\033[33m";
     if (strcmp(color_name, "green") == 0) return "\033[32m";
     if (strcmp(color_name, "turquoise") == 0) return "\033[36m";
     if (strcmp(color_name, "blue") == 0) return "\033[34m";
     if (strcmp(color_name, "purple") == 0) return "\033[35m";
     if (strcmp(color_name, "white") == 0) return "\033[37m";
-    fprintf(stderr, "DEBUG get_color_code: defaulting to white for '%s'\n", color_name);
-    return "\033[37m"; // default white
+    return "\033[37m";
 }
 
-// Helper function to format username with color for display
+
 static void format_colored_username(const client_t *client, char *buffer, size_t buffer_size) {
     const char *color_code = get_color_code(client->color);
     const char *reset_code = "\033[0m";
     
     snprintf(buffer, buffer_size, "%s%s%s", color_code, client->username, reset_code);
-    
-    // Debug print
-    fprintf(stderr, "DEBUG format_colored_username: client=%s, color=%s, code=%s, formatted='%s'\n",
-            client->username, client->color, color_code, buffer);
+
 }
 
-// Helper function to initialize a new client
+
 static void client_init(client_t *client, int fd) {
     memset(client, 0, sizeof(client_t));
     client->fd = fd;
@@ -52,7 +47,7 @@ static void client_init(client_t *client, int fd) {
     client->next_in_channel = NULL;
 }
 
-// Signal handler for graceful shutdown
+
 static void signal_handler(int sig) {
     if (g_server_state != NULL) {
         printf("\nReceived signal %d, shutting down server...\n", sig);
@@ -61,58 +56,49 @@ static void signal_handler(int sig) {
     }
 }
 
-// Initialize server socket and state
 int server_init(server_state_t *state, int port) {
     int opt = 1;
     struct sockaddr_in server_addr;
 
-    // Initialize state
     memset(state, 0, sizeof(server_state_t));
     state->port = port;
     state->clients = NULL;
     state->channels = NULL;
     state->max_fd = 0;
 
-    // Create server socket
     state->server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (state->server_fd < 0) {
         perror("socket");
         return -1;
     }
 
-    // Set socket options to reuse address
     if (setsockopt(state->server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt");
         close(state->server_fd);
         return -1;
     }
 
-    // Configure server address
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(port);
 
-    // Bind socket
     if (bind(state->server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("bind");
         close(state->server_fd);
         return -1;
     }
 
-    // Listen for connections
     if (listen(state->server_fd, 10) < 0) {
         perror("listen");
         close(state->server_fd);
         return -1;
     }
 
-    // Initialize file descriptor sets
     FD_ZERO(&state->master_set);
     FD_SET(state->server_fd, &state->master_set);
     state->max_fd = state->server_fd;
 
-    // Set up signal handler for graceful shutdown
     g_server_state = state;
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -121,14 +107,12 @@ int server_init(server_state_t *state, int port) {
     return 0;
 }
 
-// Clean up server resources
 void server_cleanup(server_state_t *state) {
     client_t *client, *next;
     channel_t *channel, *next_channel;
 
     printf("Cleaning up server resources...\n");
 
-    // Close all client connections
     for (client = state->clients; client != NULL; client = next) {
         next = client->next;
         close(client->fd);
@@ -136,7 +120,6 @@ void server_cleanup(server_state_t *state) {
     }
     state->clients = NULL;
 
-    // Free all channels and their history
     for (channel = state->channels; channel != NULL; channel = next_channel) {
         next_channel = channel->next;
         channel_free_history(channel);
@@ -144,7 +127,6 @@ void server_cleanup(server_state_t *state) {
     }
     state->channels = NULL;
 
-    // Close server socket
     if (state->server_fd >= 0) {
         close(state->server_fd);
         state->server_fd = -1;
@@ -153,7 +135,6 @@ void server_cleanup(server_state_t *state) {
     printf("Server cleanup complete\n");
 }
 
-// Add a new client to the server
 client_t *client_add(server_state_t *state, int client_fd) {
     client_t *new_client = malloc(sizeof(client_t));
     if (new_client == NULL) {
@@ -161,17 +142,13 @@ client_t *client_add(server_state_t *state, int client_fd) {
         return NULL;
     }
 
-    // Initialize client
     client_init(new_client, client_fd);
 
-    // Add to linked list
     new_client->next = state->clients;
     state->clients = new_client;
 
-    // Add to default "general" channel if it exists
     channel_t *general_channel = channel_find(state, "general");
     if (general_channel == NULL) {
-        // Create default general channel
         general_channel = channel_create(state, "general");
     }
     if (general_channel != NULL) {
@@ -180,7 +157,6 @@ client_t *client_add(server_state_t *state, int client_fd) {
         new_client->channel[sizeof(new_client->channel) - 1] = '\0';
     }
 
-    // Add to master set and update max_fd
     FD_SET(client_fd, &state->master_set);
     if (client_fd > state->max_fd) {
         state->max_fd = client_fd;
@@ -190,13 +166,11 @@ client_t *client_add(server_state_t *state, int client_fd) {
     return new_client;
 }
 
-// Remove a client from the server
 void client_remove(server_state_t *state, int client_fd) {
     client_t *client, *prev = NULL;
 
     for (client = state->clients; client != NULL; prev = client, client = client->next) {
         if (client->fd == client_fd) {
-            // Remove client from current channel if in one
             if (strlen(client->channel) > 0) {
                 channel_t *channel = channel_find(state, client->channel);
                 if (channel != NULL) {
@@ -204,7 +178,6 @@ void client_remove(server_state_t *state, int client_fd) {
                 }
             }
 
-            // Remove from linked list
             if (prev == NULL) {
                 state->clients = client->next;
             } else {
@@ -286,7 +259,6 @@ void handle_new_connection(server_state_t *state) {
            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 }
 
-// Handle JOIN message from client (username join)
 static void handle_join_message(server_state_t *state, client_t *client, const join_data_t *join_data) {
 
     // Check if username is already taken
@@ -312,9 +284,7 @@ static void handle_join_message(server_state_t *state, client_t *client, const j
 
         channel_t *channel = channel_find(state, client->channel);
         if (channel != NULL) {
-            // Send channel history to the newly joined client
             channel_send_history(channel, client->fd);
-            // Broadcast join notification to all clients in channel
             channel_broadcast(state, channel, NULL, notification, -1);
         }
     }
@@ -323,7 +293,6 @@ static void handle_join_message(server_state_t *state, client_t *client, const j
            client->fd, client->username, client->channel);
 }
 
-// Handle CHAT message from client
 static void handle_chat_message(server_state_t *state, client_t *client, const chat_data_t *chat_data) {
 
     // Check if client is authenticated
@@ -347,9 +316,8 @@ static void handle_chat_message(server_state_t *state, client_t *client, const c
     printf("Message from %s in channel %s: %s\n", client->username, client->channel, chat_data->message);
 }
 
-// Handle COLOR message from client
 void handle_color_message(server_state_t *state, client_t *client, const char *color) {
-    fprintf(stderr, "DEBUG handle_color_message: client=%s, requested_color=%s\n", client->username, color);
+
     // Check if client is authenticated
     if (!client->authenticated) {
         send_error_message(client->fd, "You must join first with /join <username>");
@@ -365,33 +333,27 @@ void handle_color_message(server_state_t *state, client_t *client, const char *c
         strcmp(color, "turquoise") != 0 &&
         strcmp(color, "blue") != 0 &&
         strcmp(color, "purple") != 0) {
-        fprintf(stderr, "DEBUG: Invalid color '%s' rejected\n", color);
+
         send_error_message(client->fd, "Invalid color. Available colors: white, red, orange, yellow, green, turquoise, blue, purple");
         return;
     }
 
-    fprintf(stderr, "DEBUG: Valid color '%s' accepted for client %s\n", color, client->username);
-    // Update client's color
+
     strncpy(client->color, color, sizeof(client->color) - 1);
     client->color[sizeof(client->color) - 1] = '\0';
 
-    // Broadcast color change to all clients in the same channel
     broadcast_color_change(state, client, color);
 }
 
-// Broadcast color change to clients in the same channel
 void broadcast_color_change(server_state_t *state, client_t *client, const char *color) {
-    fprintf(stderr, "DEBUG broadcast_color_change: client=%s, color=%s, channel=%s\n", 
-            client->username, color, client->channel);
+
     if (strlen(client->channel) == 0) {
-        // Client not in a channel, nothing to broadcast
-        fprintf(stderr, "DEBUG: client not in a channel\n");
         return;
     }
 
     channel_t *channel = channel_find(state, client->channel);
     if (channel == NULL) {
-        fprintf(stderr, "DEBUG: channel not found\n");
+
         return;
     }
 
@@ -401,12 +363,9 @@ void broadcast_color_change(server_state_t *state, client_t *client, const char 
     strncpy(color_data.color, color, sizeof(color_data.color) - 1);
     color_data.color[sizeof(color_data.color) - 1] = '\0';
 
-    fprintf(stderr, "DEBUG: Sending color data to channel members\n");
-    // Send to all clients in the channel (including the sender)
     client_t *channel_client;
     for (channel_client = channel->members; channel_client != NULL; channel_client = channel_client->next_in_channel) {
         if (channel_client->authenticated) {
-            fprintf(stderr, "DEBUG:   -> to client %s (fd=%d)\n", channel_client->username, channel_client->fd);
             send_message(channel_client->fd, MSG_TYPE_COLOR, &color_data, sizeof(color_data));
         }
     }
@@ -414,7 +373,6 @@ void broadcast_color_change(server_state_t *state, client_t *client, const char 
     printf("Client %s changed color to %s in channel %s\n", client->username, color, client->channel);
 }
 
-// Handle client message
 void handle_client_message(server_state_t *state, int client_fd) {
     client_t *client = client_find_by_fd(state, client_fd);
     message_header_t header;
@@ -422,19 +380,15 @@ void handle_client_message(server_state_t *state, int client_fd) {
 
     
     if (client == NULL) {
-        // Client not found, remove it
         client_remove(state, client_fd);
         return;
     }
 
-    // Read message header
     if (receive_message_header(client_fd, &header) < 0) {
-        // Connection closed or error
         client_remove(state, client_fd);
         return;
     }
 
-    // Handle based on message type
     switch (header.type) {
         case MSG_TYPE_JOIN: {
             if (header.length != sizeof(join_data_t)) {
@@ -506,7 +460,6 @@ void handle_client_message(server_state_t *state, int client_fd) {
         }
 
         case MSG_TYPE_LEAVE: {
-            // Client wants to leave gracefully
             client_remove(state, client_fd);
             break;
         }
@@ -533,19 +486,16 @@ void handle_client_message(server_state_t *state, int client_fd) {
     }
 }
 
-// Broadcast message to all connected clients
 void broadcast_message(server_state_t *state, const char *username, const char *message) {
     client_t *client;
     chat_data_t chat_data;
 
-    // Prepare chat message
     strncpy(chat_data.username, username, MAX_USERNAME_LEN - 1);
     chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
-    chat_data.channel[0] = '\0';  // Empty for broadcast messages
+    chat_data.channel[0] = '\0';
     strncpy(chat_data.message, message, MAX_MESSAGE_LEN - 1);
     chat_data.message[MAX_MESSAGE_LEN - 1] = '\0';
 
-    // Send to all authenticated clients
     for (client = state->clients; client != NULL; client = client->next) {
         if (client->authenticated) {
             send_message(client->fd, MSG_TYPE_CHAT, &chat_data, sizeof(chat_data));
@@ -652,16 +602,12 @@ void channel_remove_client(channel_t *channel, client_t *client) {
     }
 }
 
-// Add a message to channel history
 void channel_add_to_history(channel_t *channel, client_t *sender, const char *message) {
     char *username_to_store;
     
-    // Determine what username to store in history
     if (sender == NULL) {
-        // Server message
         username_to_store = strdup("SERVER");
     } else {
-        // User message - store formatted username with color codes
         char formatted_username[MAX_USERNAME_LEN];
         format_colored_username(sender, formatted_username, sizeof(formatted_username));
         username_to_store = strdup(formatted_username);
@@ -672,7 +618,6 @@ void channel_add_to_history(channel_t *channel, client_t *sender, const char *me
         return;
     }
 
-    // Create new history node
     message_node_t *new_node = malloc(sizeof(message_node_t));
     if (new_node == NULL) {
         perror("malloc");
@@ -680,7 +625,6 @@ void channel_add_to_history(channel_t *channel, client_t *sender, const char *me
         return;
     }
 
-    // Store formatted username and message
     new_node->username = username_to_store;
     new_node->message = strdup(message);
     if (new_node->message == NULL) {
@@ -692,7 +636,6 @@ void channel_add_to_history(channel_t *channel, client_t *sender, const char *me
 
     new_node->next = NULL;
 
-    // Add to end of history list
     if (channel->history == NULL) {
         channel->history = new_node;
     } else {
@@ -705,7 +648,6 @@ void channel_add_to_history(channel_t *channel, client_t *sender, const char *me
 
     channel->history_count++;
 
-    // Enforce MAX_HISTORY limit by removing oldest messages
     while (channel->history_count > MAX_HISTORY && channel->history != NULL) {
         message_node_t *oldest = channel->history;
         channel->history = oldest->next;
@@ -716,23 +658,17 @@ void channel_add_to_history(channel_t *channel, client_t *sender, const char *me
     }
 }
 
-// Send channel history to a client
 void channel_send_history(channel_t *channel, int client_fd) {
     message_node_t *current = channel->history;
     chat_data_t chat_data;
 
-
-    
-    // No history to send
     if (current == NULL) {
         return;
     }
 
-    // Prepare common chat data (channel name)
     strncpy(chat_data.channel, channel->name, MAX_CHANNEL_LEN - 1);
     chat_data.channel[MAX_CHANNEL_LEN - 1] = '\0';
 
-    // Send each message in history
     while (current != NULL) {
         strncpy(chat_data.username, current->username, MAX_USERNAME_LEN - 1);
         chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
@@ -741,10 +677,9 @@ void channel_send_history(channel_t *channel, int client_fd) {
 
         send_message(client_fd, MSG_TYPE_CHAT, &chat_data, sizeof(chat_data));
         current = current->next;
-    }
 }
 
-// Free all history nodes in a channel
+
 void channel_free_history(channel_t *channel) {
     message_node_t *current = channel->history;
     message_node_t *next;
@@ -761,38 +696,31 @@ void channel_free_history(channel_t *channel) {
     channel->history_count = 0;
 }
 
-// Broadcast a message to all clients in a channel
 void channel_broadcast(server_state_t *state, channel_t *channel, client_t *sender, const char *message, int exclude_fd) {
-    (void)state; // Unused parameter
+    (void)state;
     client_t *client;
     chat_data_t chat_data;
     char formatted_username[MAX_USERNAME_LEN];
 
-    // Determine username and color formatting
     const char *username;
     if (sender == NULL) {
-        // Server message, no color
         username = "SERVER";
         strncpy(chat_data.username, username, MAX_USERNAME_LEN - 1);
         chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
     } else {
-        // User message, apply color
         format_colored_username(sender, formatted_username, sizeof(formatted_username));
         strncpy(chat_data.username, formatted_username, MAX_USERNAME_LEN - 1);
         chat_data.username[MAX_USERNAME_LEN - 1] = '\0';
         username = sender->username;
     }
     
-    // Add message to channel history (store plain username for history)
     channel_add_to_history(channel, sender, message);
 
-    // Prepare chat message
     strncpy(chat_data.channel, channel->name, MAX_CHANNEL_LEN - 1);
     chat_data.channel[MAX_CHANNEL_LEN - 1] = '\0';
     strncpy(chat_data.message, message, MAX_MESSAGE_LEN - 1);
     chat_data.message[MAX_MESSAGE_LEN - 1] = '\0';
 
-    // Send to all clients in the channel
     for (client = channel->members; client != NULL; client = client->next_in_channel) {
         if (client->authenticated && client->fd != exclude_fd) {
             send_message(client->fd, MSG_TYPE_CHAT, &chat_data, sizeof(chat_data));
@@ -800,9 +728,8 @@ void channel_broadcast(server_state_t *state, channel_t *channel, client_t *send
     }
 }
 
-// List clients in a channel
 void channel_list_clients(server_state_t *state, channel_t *channel, char *buffer, size_t buffer_size) {
-    (void)state; // Unused parameter
+    (void)state;
     client_t *client;
     int count = 0;
     size_t pos = 0;
@@ -832,7 +759,6 @@ void channel_list_clients(server_state_t *state, channel_t *channel, char *buffe
     }
 }
 
-// Count members in a channel
 int channel_count_members(channel_t *channel) {
     client_t *client;
     int count = 0;
@@ -846,7 +772,6 @@ int channel_count_members(channel_t *channel) {
     return count;
 }
 
-// List all channels
 void channel_list_all(server_state_t *state, char *buffer, size_t buffer_size) {
     channel_t *channel;
     int count = 0;
@@ -859,11 +784,9 @@ void channel_list_all(server_state_t *state, char *buffer, size_t buffer_size) {
         int written;
 
         if (count == 0) {
-            written = snprintf(buffer + pos, buffer_size - pos, "%s (%d users)",
-                              channel->name, member_count);
+            written = snprintf(buffer + pos, buffer_size - pos, "%s (%d)", channel->name, member_count);
         } else {
-            written = snprintf(buffer + pos, buffer_size - pos, ", %s (%d users)",
-                              channel->name, member_count);
+            written = snprintf(buffer + pos, buffer_size - pos, ", %s (%d)", channel->name, member_count);
         }
 
         if (written < 0 || (size_t)written >= buffer_size - pos) {
@@ -875,35 +798,28 @@ void channel_list_all(server_state_t *state, char *buffer, size_t buffer_size) {
     }
 
     if (count == 0) {
-        snprintf(buffer, buffer_size, "No channels available");
+        snprintf(buffer, buffer_size, "(no channels)");
     }
 }
 
-// ==================== Channel Message Handlers ====================
-
-// Handle channel join request
 void handle_channel_join(server_state_t *state, client_t *client, const char *channel_name) {
 
-    // Check if client is authenticated
     if (!client->authenticated) {
         send_error_message(client->fd, "You must join with a username first");
         return;
     }
 
-    // Check if channel exists
     channel_t *channel = channel_find(state, channel_name);
     if (channel == NULL) {
         send_error_message(client->fd, "Channel does not exist");
         return;
     }
 
-    // Remove client from current channel if in one
     if (strlen(client->channel) > 0) {
         channel_t *old_channel = channel_find(state, client->channel);
         if (old_channel != NULL) {
             channel_remove_client(old_channel, client);
 
-            // Notify old channel
             char leave_msg[MAX_MESSAGE_LEN];
             snprintf(leave_msg, sizeof(leave_msg),
                     "*** %s has left the channel ***", client->username);
@@ -911,21 +827,17 @@ void handle_channel_join(server_state_t *state, client_t *client, const char *ch
         }
     }
 
-    // Add client to new channel
     channel_add_client(channel, client);
     strncpy(client->channel, channel_name, sizeof(client->channel) - 1);
     client->channel[sizeof(client->channel) - 1] = '\0';
 
-    // Send channel history to client
     channel_send_history(channel, client->fd);
 
-    // Send success message
     char success_msg[MAX_MESSAGE_LEN];
     snprintf(success_msg, sizeof(success_msg),
             "Joined channel '%s'", channel_name);
     send_server_message(client->fd, success_msg);
 
-    // Notify new channel
     char join_msg[MAX_MESSAGE_LEN];
     snprintf(join_msg, sizeof(join_msg),
             "*** %s has joined the channel ***", client->username);
@@ -934,16 +846,13 @@ void handle_channel_join(server_state_t *state, client_t *client, const char *ch
     printf("Client %s joined channel %s\n", client->username, channel_name);
 }
 
-// Handle channel create request
 void handle_channel_create(server_state_t *state, client_t *client, const char *channel_name) {
 
-    // Check if client is authenticated
     if (!client->authenticated) {
         send_error_message(client->fd, "You must join with a username first");
         return;
     }
 
-    // Check channel name validity
     if (strlen(channel_name) == 0) {
         send_error_message(client->fd, "Channel name cannot be empty");
         return;
@@ -954,26 +863,22 @@ void handle_channel_create(server_state_t *state, client_t *client, const char *
         return;
     }
 
-    // Check if channel already exists
     if (channel_find(state, channel_name) != NULL) {
         send_error_message(client->fd, "Channel already exists");
         return;
     }
 
-    // Create new channel
     channel_t *channel = channel_create(state, channel_name);
     if (channel == NULL) {
         send_error_message(client->fd, "Failed to create channel");
         return;
     }
 
-    // Remove client from current channel if in one
     if (strlen(client->channel) > 0) {
         channel_t *old_channel = channel_find(state, client->channel);
         if (old_channel != NULL) {
             channel_remove_client(old_channel, client);
 
-            // Notify old channel
             char leave_msg[MAX_MESSAGE_LEN];
             snprintf(leave_msg, sizeof(leave_msg),
                     "*** %s has left the channel ***", client->username);
@@ -981,15 +886,12 @@ void handle_channel_create(server_state_t *state, client_t *client, const char *
         }
     }
 
-    // Add client to new channel
     channel_add_client(channel, client);
     strncpy(client->channel, channel_name, sizeof(client->channel) - 1);
     client->channel[sizeof(client->channel) - 1] = '\0';
 
-    // Send channel history to client
     channel_send_history(channel, client->fd);
 
-    // Send success message
     char success_msg[MAX_MESSAGE_LEN];
     snprintf(success_msg, sizeof(success_msg),
             "Created and joined channel '%s'", channel_name);
@@ -1004,7 +906,6 @@ void handle_channel_list(server_state_t *state, client_t *client) {
 
     channel_list_all(state, channel_list, sizeof(channel_list));
 
-    // Send channel list to client
     send_server_message(client->fd, channel_list);
 
     printf("Sent channel list to client %s\n", client->username);
@@ -1038,10 +939,10 @@ void server_run(server_state_t *state) {
                     // New connection
                     handle_new_connection(state);
                 } else {
-                    // Client activity
                     handle_client_message(state, fd);
                 }
             }
         }
     }
+}
 }
