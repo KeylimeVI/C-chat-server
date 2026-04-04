@@ -677,8 +677,8 @@ void channel_send_history(channel_t *channel, int client_fd) {
 
         send_message(client_fd, MSG_TYPE_CHAT, &chat_data, sizeof(chat_data));
         current = current->next;
+    }
 }
-
 
 void channel_free_history(channel_t *channel) {
     message_node_t *current = channel->history;
@@ -944,5 +944,4 @@ void server_run(server_state_t *state) {
             }
         }
     }
-}
 }

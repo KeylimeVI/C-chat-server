@@ -20,6 +20,7 @@ typedef struct channel {
     char name[32];
     struct client *members;
     message_node_t *history;
+    message_node_t *history_tail;
     int history_count;
     struct channel *next;
 } channel_t;
